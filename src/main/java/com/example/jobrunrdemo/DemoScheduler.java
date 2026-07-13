@@ -2,20 +2,17 @@ package com.example.jobrunrdemo;
 
 import org.jobrunr.jobs.annotations.Job;
 import org.jobrunr.jobs.annotations.Recurring;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import lombok.CustomLog;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
-@Slf4j
+@CustomLog
 @Component
 @RequiredArgsConstructor
 public class DemoScheduler {
 
-
-	@Job(name = "데모 Job", labels = {"DEMO"})
+	@Job(name = "데모 Job", labels = {"WMS", "OMS"})
 	@Recurring(
 		id = "demo-job",
 		cron = "0 0 * * * *"
