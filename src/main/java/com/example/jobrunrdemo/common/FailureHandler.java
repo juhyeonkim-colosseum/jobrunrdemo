@@ -1,4 +1,4 @@
-package com.example.jobrunrdemo.scheduler;
+package com.example.jobrunrdemo.common;
 
 /**
  * 단계 실패 시 호출되는 후처리 핸들러.

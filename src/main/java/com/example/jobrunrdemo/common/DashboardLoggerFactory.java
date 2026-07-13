@@ -1,4 +1,4 @@
-package com.example.jobrunrdemo;
+package com.example.jobrunrdemo.common;
 
 import org.jobrunr.jobs.context.JobRunrDashboardLogger;
 import org.slf4j.Logger;

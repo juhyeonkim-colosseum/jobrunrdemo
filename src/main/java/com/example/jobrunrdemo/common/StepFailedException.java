@@ -1,4 +1,4 @@
-package com.example.jobrunrdemo;
+package com.example.jobrunrdemo.common;
 
 import lombok.experimental.StandardException;
 

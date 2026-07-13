@@ -1,4 +1,4 @@
-package com.example.jobrunrdemo.scheduler;
+package com.example.jobrunrdemo.common;
 
 /**
  * Job의 단일 단계 실행 단위.
