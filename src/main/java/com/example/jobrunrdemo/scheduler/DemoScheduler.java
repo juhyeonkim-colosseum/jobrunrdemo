@@ -1,4 +1,4 @@
-package com.example.jobrunrdemo;
+package com.example.jobrunrdemo.scheduler;
 
 import org.jobrunr.jobs.annotations.Job;
 import org.jobrunr.jobs.annotations.Recurring;
