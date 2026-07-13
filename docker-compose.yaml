@@ -1,0 +1,10 @@
+services:
+  mysql:
+    container_name: mysql
+    image: mysql:8.4.1
+    environment:
+      - MYSQL_ROOT_PASSWORD=1234
+      - MYSQL_DATABASE=demo
+    ports:
+      - "3306:3306"
+    command: [ 'mysqld', '--character-set-server=utf8mb4', '--collation-server=utf8mb4_general_ci' ]

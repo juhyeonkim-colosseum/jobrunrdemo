@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: jobrunr-demo
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: jdbc:mysql://localhost:3306/demo
+    username: root
+    password: 1234
+    hikari:
+      auto-commit: false
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        connection:
+          provider_disables_autocommit: true
+jobrunr:
+  dashboard:
+    enabled: true
+    port: 8000
+    username: admin
+    password: admin
+  background-job-server:
+    enabled: true
+    poll-interval-in-seconds: 10
+    worker-count: 5 # 동시 작업할 수 있는 Task의 수
+    delete-succeeded-jobs-after: 48h
+    permanently-delete-deleted-jobs-after: 60h
+    thread-type: VirtualThreads
