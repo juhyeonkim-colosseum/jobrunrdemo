@@ -1,5 +1,7 @@
 package com.example.jobrunrdemo.common;
 
+import java.util.function.Consumer;
+
 import org.jobrunr.jobs.context.JobContext;
 import org.springframework.stereotype.Component;
 
@@ -23,15 +25,16 @@ import lombok.CustomLog;
 @Component
 public class JobStepExecutor {
 
-	private static final String STEP_DONE = "DONE";
-
 	/**
 	 * 성공/실패 후처리가 필요 없는 단계 실행.
 	 */
-	public void run(JobContext jobContext, String stepKey, String stepName, Step step) {
+	public void run(String stepName, Step step) {
 		run(
-			jobContext, stepKey, stepName, step, () -> {
-			}, e -> {
+			stepName,
+			step,
+			() -> {
+			},
+			e -> {
 			}
 		);
 	}
@@ -45,33 +48,25 @@ public class JobStepExecutor {
 	 * </ul>
 	 */
 	public void run(
-		JobContext jobContext,
-		String stepKey,
 		String stepName,
 		Step step,
 		Runnable onSuccess,
-		FailureHandler onFailure
+		Consumer<Exception> onFailure
 	) {
-		if (STEP_DONE.equals(jobContext.getMetadata().get(stepKey))) {
-			log.info("[{}] 이전 실행에서 이미 완료됨 - 건너뜀", stepName);
-			return;
-		}
-
 		log.info("[{}] 시작", stepName);
 		try {
 			step.run();
 		} catch (InterruptedException e) {
 			// 인터럽트 상태를 복원한 뒤 실패로 처리한다.
 			Thread.currentThread().interrupt();
-			onFailure.handle(e);
+			onFailure.accept(e);
 			throw new StepFailedException(stepName + " 단계 중단됨", e);
 		} catch (Exception e) {
 			log.error("[{}] 실패", stepName, e);
-			onFailure.handle(e);
+			onFailure.accept(e);
 			throw new StepFailedException(stepName + " 단계 실패", e);
 		}
 
-		jobContext.saveMetadata(stepKey, STEP_DONE);
 		log.info("[{}] 완료", stepName);
 		onSuccess.run();
 	}

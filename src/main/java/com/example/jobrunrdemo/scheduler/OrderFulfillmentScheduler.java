@@ -4,7 +4,6 @@ import java.util.concurrent.ThreadLocalRandom;
 
 import org.jobrunr.jobs.annotations.Job;
 import org.jobrunr.jobs.annotations.Recurring;
-import org.jobrunr.jobs.context.JobContext;
 import org.springframework.stereotype.Component;
 
 import com.example.jobrunrdemo.common.JobStepExecutor;
@@ -32,22 +31,24 @@ public class OrderFulfillmentScheduler {
 		id = "order-fulfillment-job",
 		cron = "0 */1 * * * *"
 	)
-	public void processOrders(JobContext jobContext) {
+	public void processOrders() {
 		log.info("주문 처리 Job 시작");
 
 		// 주문 수집: 성공/실패 시 별도 후처리 없이 진행 (실패하면 예외로 재시도)
-		stepExecutor.run(jobContext, "1-collect-orders", "주문 수집", this::collectOrders);
+		stepExecutor.run("주문 수집", this::collectOrders);
 
 		// 재고 확인: 실패 시 품절 알림
 		stepExecutor.run(
-			jobContext, "2-check-stock", "재고 확인", this::checkStock,
+			"재고 확인",
+			this::checkStock,
 			() -> log.info("[재고 확인] 성공 - 출고 진행 가능"),
 			e -> log.warn("[재고 확인] 실패 - 품절 알림 발송: {}", e.getMessage())
 		);
 
 		// 출고 지시: 성공 시 배송 추적 시작 + 주문 완료 알림, 실패 시 보상 처리(재고 예약 해제)
 		stepExecutor.run(
-			jobContext, "3-issue-shipment", "출고 지시", this::issueShipment,
+			"출고 지시",
+			this::issueShipment,
 			() -> log.info("[출고 지시] 성공 - 배송 추적 시작 및 주문 완료 알림 발송"),
 			this::compensateShipment
 		);
