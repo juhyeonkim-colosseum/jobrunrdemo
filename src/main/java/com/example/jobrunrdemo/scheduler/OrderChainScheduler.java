@@ -8,8 +8,6 @@ import org.jobrunr.jobs.annotations.Recurring;
 import org.jobrunr.scheduling.JobScheduler;
 import org.springframework.stereotype.Component;
 
-import com.example.jobrunrdemo.common.StepFailedException;
-
 import lombok.CustomLog;
 import lombok.RequiredArgsConstructor;
 
@@ -26,8 +24,8 @@ import lombok.RequiredArgsConstructor;
  *   <li>다음 단계 enqueue가 메서드 끝에 있으므로, 중간에 예외가 나면 다음 단계는 큐잉되지 않는다.
  *       실패한 그 Job만 재시도되고, 성공하면 그때 다음 단계로 이어진다.</li>
  *   <li>단계 간 데이터는 파라미터로 전달한다(여기서는 orderBatchId).</li>
- *   <li>마지막 단계가 실패하면 앞 단계의 효과를 역순으로 되돌리는 <b>보상 처리 체인</b>
- *       (saga 패턴)을 enqueue한다.</li>
+ *   <li>마지막 단계가 재시도까지 모두 소진해 <b>최종 실패</b>하면, {@link OrderChainCompensationFilter}가
+ *       이를 감지해 앞 단계의 효과를 역순으로 되돌리는 <b>보상 처리 체인</b>(saga 패턴)을 enqueue한다.</li>
  * </ul>
  */
 @CustomLog
@@ -76,26 +74,17 @@ public class OrderChainScheduler {
 	/**
 	 * 3단계: 출고 지시(체인의 마지막). 실패 테스트용으로 90% 확률로 실패한다.
 	 *
-	 * <p>실패하면 앞 단계(주문 수집·재고 확인)의 효과를 되돌리는 <b>보상 처리 체인</b>을
-	 * enqueue한 뒤 예외를 던져 이 Job을 실패로 남긴다.
-	 *
-	 * <p>보상이 정확히 한 번만 실행되도록 이 단계는 {@code retries = 0}(재시도 없음)으로 둔다.
-	 * 재시도를 유지한 채 "모든 재시도가 소진된 최종 실패"에만 보상하려면, catch에서 직접 enqueue하는
-	 * 대신 {@code ElectStateFilter}(JobFilter)로 최종 {@code FailedState} 전이를 감지해 enqueue하면 된다.
+	 * <p>이 단계는 그냥 예외를 던질 뿐, 보상 처리를 직접 호출하지 않는다.
+	 * JobRunr가 {@code retries}만큼 재시도하고, <b>모든 재시도가 소진되어 최종 실패</b>하면
+	 * {@link OrderChainCompensationFilter}가 그 시점을 감지해 보상 처리 체인을 enqueue한다.
+	 * (재시도마다 보상이 중복 실행되지 않고, 최종 실패에만 정확히 한 번 실행됨)
 	 */
-	@Job(name = "주문 체인 - 3. 출고 지시", labels = {"OMS", "CHAIN"}, retries = 0)
+	@Job(name = "주문 체인 - 3. 출고 지시", labels = {"OMS", "CHAIN"}, retries = 2)
 	public void issueShipment(String orderBatchId) throws InterruptedException {
 		log.info("[출고 지시] 시작 - batchId={}", orderBatchId);
 		Thread.sleep(2000);
-		try {
-			if (ThreadLocalRandom.current().nextDouble() < 0.9) {
-				throw new IllegalStateException("출고 시스템 연동 실패 (테스트용 90% 실패)");
-			}
-		} catch (Exception e) {
-			log.error("[출고 지시] 실패 - 보상 처리 체인 시작 batchId={}, 사유={}", orderBatchId, e.getMessage());
-			// 보상은 정방향의 역순으로 진행한다: 재고 예약 해제 → 주문 취소
-			jobScheduler.enqueue(() -> compensateReleaseStock(orderBatchId, e.getMessage()));
-			throw new StepFailedException("출고 지시 단계 실패", e);
+		if (ThreadLocalRandom.current().nextDouble() < 0.9) {
+			throw new IllegalStateException("출고 시스템 연동 실패 (테스트용 90% 실패)");
 		}
 		log.info("[출고 지시] 완료 - 주문 처리 체인 종료 batchId={}", orderBatchId);
 	}
