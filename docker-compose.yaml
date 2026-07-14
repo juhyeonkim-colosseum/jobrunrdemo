@@ -8,3 +8,14 @@ services:
     ports:
       - "3306:3306"
     command: [ 'mysqld', '--character-set-server=utf8mb4', '--collation-server=utf8mb4_general_ci' ]
+
+  # DBOS Transact용 PostgreSQL (durable workflow 상태 저장)
+  postgres:
+    container_name: postgres
+    image: postgres:16
+    environment:
+      - POSTGRES_DB=dbos
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=dbos
+    ports:
+      - "5432:5432"
