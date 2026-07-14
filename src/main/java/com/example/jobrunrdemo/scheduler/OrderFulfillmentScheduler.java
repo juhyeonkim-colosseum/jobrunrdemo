@@ -58,7 +58,6 @@ public class OrderFulfillmentScheduler {
 
 	private void compensateShipment(Exception cause) {
 		log.warn("[출고 지시] 실패 - 재고 예약 해제(보상 처리) 수행: {}", cause.getMessage());
-		// TODO: 재고 예약 해제 등 보상 로직
 	}
 
 	private void collectOrders() throws InterruptedException {
@@ -70,11 +69,11 @@ public class OrderFulfillmentScheduler {
 	}
 
 	private void issueShipment() throws InterruptedException {
-		Thread.sleep(2000);
 		// 실패 테스트용: 90% 확률로 실패시킨다.
 		if (ThreadLocalRandom.current().nextDouble() < 0.9) {
 			throw new IllegalStateException("출고 시스템 연동 실패 (테스트용 90% 실패)");
 		}
+		Thread.sleep(2000);
 	}
 
 }
