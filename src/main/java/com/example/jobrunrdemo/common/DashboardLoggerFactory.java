@@ -4,6 +4,8 @@ import org.jobrunr.jobs.context.JobRunrDashboardLogger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import lombok.NoArgsConstructor;
+
 /**
  * Lombok {@code @CustomLog}가 사용하는 로거 팩토리.
  *
@@ -13,10 +15,8 @@ import org.slf4j.LoggerFactory;
  *
  * <p>{@code lombok.config}의 {@code lombok.log.custom.declaration} 설정과 연결된다.
  */
+@NoArgsConstructor
 public final class DashboardLoggerFactory {
-
-	private DashboardLoggerFactory() {
-	}
 
 	public static Logger getLogger(Class<?> clazz) {
 		return new JobRunrDashboardLogger(LoggerFactory.getLogger(clazz));
