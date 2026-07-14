@@ -8,6 +8,9 @@ import org.jobrunr.jobs.annotations.Recurring;
 import org.jobrunr.scheduling.JobScheduler;
 import org.springframework.stereotype.Component;
 
+import com.example.jobrunrdemo.common.CompensationDispatcher;
+
+import jakarta.annotation.PostConstruct;
 import lombok.CustomLog;
 import lombok.RequiredArgsConstructor;
 
@@ -24,8 +27,9 @@ import lombok.RequiredArgsConstructor;
  *   <li>다음 단계 enqueue가 메서드 끝에 있으므로, 중간에 예외가 나면 다음 단계는 큐잉되지 않는다.
  *       실패한 그 Job만 재시도되고, 성공하면 그때 다음 단계로 이어진다.</li>
  *   <li>단계 간 데이터는 파라미터로 전달한다(여기서는 orderBatchId).</li>
- *   <li>마지막 단계가 재시도까지 모두 소진해 <b>최종 실패</b>하면, {@link OrderChainCompensationFilter}가
- *       이를 감지해 앞 단계의 효과를 역순으로 되돌리는 <b>보상 처리 체인</b>(saga 패턴)을 enqueue한다.</li>
+ *   <li>마지막 단계가 재시도까지 모두 소진해 <b>최종 실패</b>하면, {@link CompensationDispatcher}에
+ *       등록해 둔 보상 핸들러가 실행되어 앞 단계의 효과를 역순으로 되돌리는
+ *       <b>보상 처리 체인</b>(saga 패턴)을 enqueue한다.</li>
  * </ul>
  */
 @CustomLog
@@ -34,6 +38,19 @@ import lombok.RequiredArgsConstructor;
 public class OrderChainScheduler {
 
 	private final JobScheduler jobScheduler;
+	private final CompensationDispatcher compensationDispatcher;
+
+	/**
+	 * 출고 지시 단계가 최종 실패하면 보상 처리 체인을 시작하도록 등록한다.
+	 * (필터 클래스를 새로 만들지 않고 람다 등록만으로 처리)
+	 */
+	@PostConstruct
+	void registerCompensations() {
+		compensationDispatcher.onFinalFailure(OrderChainScheduler.class, "issueShipment", failure -> {
+			String orderBatchId = failure.parameter(0);
+			jobScheduler.enqueue(() -> compensateReleaseStock(orderBatchId, failure.reason()));
+		});
+	}
 
 	/**
 	 * 체인의 시작점. 배치 ID를 생성하고 첫 단계 Job을 enqueue한다.
@@ -76,7 +93,8 @@ public class OrderChainScheduler {
 	 *
 	 * <p>이 단계는 그냥 예외를 던질 뿐, 보상 처리를 직접 호출하지 않는다.
 	 * JobRunr가 {@code retries}만큼 재시도하고, <b>모든 재시도가 소진되어 최종 실패</b>하면
-	 * {@link OrderChainCompensationFilter}가 그 시점을 감지해 보상 처리 체인을 enqueue한다.
+	 * {@link #registerCompensations()}에서 {@link CompensationDispatcher}에 등록한 핸들러가
+	 * 그 시점을 감지해 보상 처리 체인을 enqueue한다.
 	 * (재시도마다 보상이 중복 실행되지 않고, 최종 실패에만 정확히 한 번 실행됨)
 	 */
 	@Job(name = "주문 체인 - 3. 출고 지시", labels = {"OMS", "CHAIN"}, retries = 2)
