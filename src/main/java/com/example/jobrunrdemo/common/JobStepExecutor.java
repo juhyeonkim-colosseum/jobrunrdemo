@@ -56,7 +56,7 @@ public class JobStepExecutor {
 		log.info("[{}] 시작", stepName);
 		try {
 			step.run();
-		} catch (Exception e) {
+		} catch (RuntimeException | InterruptedException e) {
 			log.error("[{}] 실패", stepName, e);
 			onFailure.accept(e);
 			throw new StepFailedException(stepName + " 단계 실패", e);

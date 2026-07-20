@@ -65,7 +65,7 @@ public class OrderChainScheduler {
 	 * <p>{@code @Recurring} 메서드는 원래 파라미터를 가질 수 없지만, {@link JobContext}만은
 	 * JobRunr가 실행 시점에 주입해 주므로 예외적으로 받을 수 있다.
 	 */
-	@Job(name = "주문 체인(성공) - 시작", labels = {"OMS", "CHAIN"})
+	@Job(name = "주문 수집(후속 Job 실행) - 성공", labels = {"OMS", "CHAIN"})
 	@Recurring(
 		id = "order-chain-job-success",
 		interval = "PT20M"
@@ -76,7 +76,7 @@ public class OrderChainScheduler {
 		jobScheduler.enqueue(() -> collectOrders(rootJobId, true));
 	}
 
-	@Job(name = "주문 체인(실패) - 시작", labels = {"OMS", "CHAIN"})
+	@Job(name = "주문 수집(후속 Job 실행) - 실패", labels = {"OMS", "CHAIN"})
 	@Recurring(
 		id = "order-chain-job-failure",
 		interval = "PT20M"

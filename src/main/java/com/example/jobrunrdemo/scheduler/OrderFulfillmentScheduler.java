@@ -26,7 +26,7 @@ public class OrderFulfillmentScheduler {
 
 	private final JobStepExecutor stepExecutor;
 
-	@Job(name = "주문 처리 Job", labels = {"OMS"})
+	@Job(name = "주문 처리(람다 기반 Chaining)", labels = {"OMS"})
 	@Recurring(
 		id = "order-fulfillment-job",
 		interval = "PT20M"

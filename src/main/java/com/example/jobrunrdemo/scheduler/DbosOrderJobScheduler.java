@@ -33,7 +33,7 @@ public class DbosOrderJobScheduler {
 
 	private final DbosOrderWorkflowService orderWorkflow;
 
-	@Job(name = "DBOS 주문 워크플로우 트리거", labels = {"DBOS"})
+	@Job(name = "주문 처리(DBOS)", labels = {"DBOS"})
 	@Recurring(
 		id = "dbos-order-workflow",
 		interval = "PT20M"
