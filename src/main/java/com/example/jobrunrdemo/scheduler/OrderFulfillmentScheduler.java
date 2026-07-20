@@ -29,7 +29,7 @@ public class OrderFulfillmentScheduler {
 	@Job(name = "주문 처리 Job", labels = {"OMS"})
 	@Recurring(
 		id = "order-fulfillment-job",
-		interval = "PT5M"
+		interval = "PT20M"
 	)
 	public void processOrders() {
 		log.info("주문 처리 Job 시작");

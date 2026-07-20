@@ -34,7 +34,7 @@ public class DbosOrderJobScheduler {
 	@Job(name = "DBOS 주문 워크플로우 트리거", labels = {"DBOS"})
 	@Recurring(
 		id = "dbos-order-workflow",
-		interval = "PT5M"
+		interval = "PT20M"
 	)
 	public void triggerOrderWorkflow() {
 		String orderBatchId = UUID.randomUUID().toString();

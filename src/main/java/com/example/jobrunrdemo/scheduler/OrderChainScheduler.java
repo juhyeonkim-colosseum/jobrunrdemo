@@ -58,7 +58,7 @@ public class OrderChainScheduler {
 	@Job(name = "주문 체인 - 시작", labels = {"OMS", "CHAIN"})
 	@Recurring(
 		id = "order-chain-job",
-		interval = "PT5M"
+		interval = "PT20M"
 	)
 	public void startChain() {
 		String orderBatchId = UUID.randomUUID().toString();
