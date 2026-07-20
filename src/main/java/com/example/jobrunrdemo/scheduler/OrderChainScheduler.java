@@ -1,10 +1,10 @@
 package com.example.jobrunrdemo.scheduler;
 
-import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.jobrunr.jobs.annotations.Job;
 import org.jobrunr.jobs.annotations.Recurring;
+import org.jobrunr.jobs.context.JobContext;
 import org.jobrunr.scheduling.JobScheduler;
 import org.springframework.stereotype.Component;
 
@@ -26,7 +26,13 @@ import lombok.RequiredArgsConstructor;
  *   <li>단계마다 별도 Job → 대시보드에서 개별 추적되고, <b>단계별로 독립 재시도</b>된다.</li>
  *   <li>다음 단계 enqueue가 메서드 끝에 있으므로, 중간에 예외가 나면 다음 단계는 큐잉되지 않는다.
  *       실패한 그 Job만 재시도되고, 성공하면 그때 다음 단계로 이어진다.</li>
- *   <li>단계 간 데이터는 파라미터로 전달한다(여기서는 orderBatchId).</li>
+ *   <li>체인의 시작점({@link #startChain(JobContext)})은 {@link JobContext}를 주입받아
+ *       <b>자신의 실제 Job ID</b>를 얻고, 이를 {@code rootJobId}로 하위 Job에 파라미터로 전달한다.
+ *       하위 Job은 자기 자신의 ID만 알 수 있고 부모 ID는 알 수 없으므로, 이렇게 명시적으로 넘겨야
+ *       "가장 상위 Job이 누구인지"를 알 수 있다. rootJobId는 체인을 따라 계속 전파된다.</li>
+ *   <li>각 하위 Job의 {@code @Job(name)}에는 {@code %0} 플레이스홀더로 rootJobId가 삽입되어,
+ *       대시보드에서 같은 rootJobId를 가진 Job들이 <b>어떤 최상위 Job에서 파생된 하위 Job인지</b>
+ *       한눈에 구분된다.</li>
  *   <li>마지막 단계가 재시도까지 모두 소진해 <b>최종 실패</b>하면, {@link CompensationDispatcher}에
  *       등록해 둔 보상 핸들러가 실행되어 앞 단계의 효과를 역순으로 되돌리는
  *       <b>보상 처리 체인</b>(saga 패턴)을 enqueue한다.</li>
@@ -47,45 +53,49 @@ public class OrderChainScheduler {
 	@PostConstruct
 	void registerCompensations() {
 		compensationDispatcher.onFinalFailure(OrderChainScheduler.class, "issueShipment", failure -> {
-			String orderBatchId = failure.parameter(0);
-			jobScheduler.enqueue(() -> compensateReleaseStock(orderBatchId, failure.reason()));
+			String rootJobId = failure.parameter(0);
+			jobScheduler.enqueue(() -> compensateReleaseStock(rootJobId, failure.reason()));
 		});
 	}
 
 	/**
-	 * 체인의 시작점. 배치 ID를 생성하고 첫 단계 Job을 enqueue한다.
+	 * 체인의 시작점. {@link JobContext}로 <b>자신의 실제 Job ID</b>를 얻어
+	 * 이를 rootJobId로 첫 단계 Job에 넘긴다.
+	 *
+	 * <p>{@code @Recurring} 메서드는 원래 파라미터를 가질 수 없지만, {@link JobContext}만은
+	 * JobRunr가 실행 시점에 주입해 주므로 예외적으로 받을 수 있다.
 	 */
 	@Job(name = "주문 체인 - 시작", labels = {"OMS", "CHAIN"})
 	@Recurring(
 		id = "order-chain-job",
 		interval = "PT20M"
 	)
-	public void startChain() {
-		String orderBatchId = UUID.randomUUID().toString();
-		log.info("주문 처리 체인 시작 - batchId={}", orderBatchId);
-		jobScheduler.enqueue(() -> collectOrders(orderBatchId));
+	public void startChain(JobContext jobContext) {
+		var rootJobId = jobContext.getJobId().toString();
+		log.info("주문 처리 체인 시작 - rootJobId={}", rootJobId);
+		jobScheduler.enqueue(() -> collectOrders(rootJobId));
 	}
 
 	/**
 	 * 1단계: 주문 수집. 성공 시 재고 확인 단계를 enqueue.
 	 */
-	@Job(name = "주문 체인 - 1. 주문 수집", labels = {"OMS", "CHAIN"})
-	public void collectOrders(String orderBatchId) throws InterruptedException {
-		log.info("[주문 수집] 시작 - batchId={}", orderBatchId);
+	@Job(name = "주문 체인[%0] - 1. 주문 수집", labels = {"OMS", "CHAIN"})
+	public void collectOrders(String rootJobId) throws InterruptedException {
+		log.info("[주문 수집] 시작 - rootJobId={}", rootJobId);
 		Thread.sleep(2000);
 		log.info("[주문 수집] 완료 - 다음 단계(재고 확인) 예약");
-		jobScheduler.enqueue(() -> checkStock(orderBatchId));
+		jobScheduler.enqueue(() -> checkStock(rootJobId));
 	}
 
 	/**
 	 * 2단계: 재고 확인. 성공 시 출고 지시 단계를 enqueue.
 	 */
-	@Job(name = "주문 체인 - 2. 재고 확인", labels = {"OMS", "CHAIN"})
-	public void checkStock(String orderBatchId) throws InterruptedException {
-		log.info("[재고 확인] 시작 - batchId={}", orderBatchId);
+	@Job(name = "주문 체인[%0] - 2. 재고 확인", labels = {"OMS", "CHAIN"})
+	public void checkStock(String rootJobId) throws InterruptedException {
+		log.info("[재고 확인] 시작 - rootJobId={}", rootJobId);
 		Thread.sleep(2000);
 		log.info("[재고 확인] 완료 - 다음 단계(출고 지시) 예약");
-		jobScheduler.enqueue(() -> issueShipment(orderBatchId));
+		jobScheduler.enqueue(() -> issueShipment(rootJobId));
 	}
 
 	/**
@@ -97,36 +107,36 @@ public class OrderChainScheduler {
 	 * 그 시점을 감지해 보상 처리 체인을 enqueue한다.
 	 * (재시도마다 보상이 중복 실행되지 않고, 최종 실패에만 정확히 한 번 실행됨)
 	 */
-	@Job(name = "주문 체인 - 3. 출고 지시", labels = {"OMS", "CHAIN"}, retries = 2)
-	public void issueShipment(String orderBatchId) throws InterruptedException {
-		log.info("[출고 지시] 시작 - batchId={}", orderBatchId);
+	@Job(name = "주문 체인[%0] - 3. 출고 지시", labels = {"OMS", "CHAIN"}, retries = 2)
+	public void issueShipment(String rootJobId) throws InterruptedException {
+		log.info("[출고 지시] 시작 - rootJobId={}", rootJobId);
 		Thread.sleep(2000);
 		if (ThreadLocalRandom.current().nextDouble() < 0.9) {
 			throw new IllegalStateException("출고 시스템 연동 실패 (테스트용 90% 실패)");
 		}
-		log.info("[출고 지시] 완료 - 주문 처리 체인 종료 batchId={}", orderBatchId);
+		log.info("[출고 지시] 완료 - 주문 처리 체인 종료 rootJobId={}", rootJobId);
 	}
 
 	/**
 	 * 보상 1단계: 재고 예약 해제(2단계 '재고 확인'의 효과 되돌리기).
 	 * 성공 시 다음 보상 단계(주문 취소)를 enqueue한다.
 	 */
-	@Job(name = "주문 체인 - 보상 1. 재고 예약 해제", labels = {"OMS", "COMPENSATION"})
-	public void compensateReleaseStock(String orderBatchId, String reason) throws InterruptedException {
-		log.warn("[보상] 재고 예약 해제 - batchId={}, 사유={}", orderBatchId, reason);
+	@Job(name = "주문 체인[%0] - 보상 1. 재고 예약 해제", labels = {"OMS", "COMPENSATION"})
+	public void compensateReleaseStock(String rootJobId, String reason) throws InterruptedException {
+		log.warn("[보상] 재고 예약 해제 - rootJobId={}, 사유={}", rootJobId, reason);
 		Thread.sleep(1000);
 		// TODO: 실제 재고 예약 해제 로직
-		jobScheduler.enqueue(() -> compensateCancelOrders(orderBatchId));
+		jobScheduler.enqueue(() -> compensateCancelOrders(rootJobId));
 	}
 
 	/**
 	 * 보상 2단계: 수집한 주문 취소(1단계 '주문 수집'의 효과 되돌리기). 보상 체인의 마지막.
 	 */
-	@Job(name = "주문 체인 - 보상 2. 주문 취소", labels = {"OMS", "COMPENSATION"})
-	public void compensateCancelOrders(String orderBatchId) throws InterruptedException {
-		log.warn("[보상] 수집 주문 취소 - batchId={}", orderBatchId);
+	@Job(name = "주문 체인[%0] - 보상 2. 주문 취소", labels = {"OMS", "COMPENSATION"})
+	public void compensateCancelOrders(String rootJobId) throws InterruptedException {
+		log.warn("[보상] 수집 주문 취소 - rootJobId={}", rootJobId);
 		Thread.sleep(1000);
 		// TODO: 실제 주문 취소 로직
-		log.info("[보상] 완료 - 주문 처리 롤백 종료 batchId={}", orderBatchId);
+		log.info("[보상] 완료 - 주문 처리 롤백 종료 rootJobId={}", rootJobId);
 	}
 }
