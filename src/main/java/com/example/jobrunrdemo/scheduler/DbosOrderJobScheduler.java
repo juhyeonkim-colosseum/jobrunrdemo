@@ -1,10 +1,12 @@
-package com.example.jobrunrdemo.dbos;
+package com.example.jobrunrdemo.scheduler;
 
 import java.util.UUID;
 
 import org.jobrunr.jobs.annotations.Job;
 import org.jobrunr.jobs.annotations.Recurring;
 import org.springframework.stereotype.Component;
+
+import com.example.jobrunrdemo.dbos.DbosOrderWorkflowService;
 
 import dev.dbos.transact.context.WorkflowOptions;
 

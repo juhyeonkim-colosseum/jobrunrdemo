@@ -1,7 +1,5 @@
 package com.example.jobrunrdemo.scheduler;
 
-import java.util.concurrent.ThreadLocalRandom;
-
 import org.jobrunr.jobs.annotations.Job;
 import org.jobrunr.jobs.annotations.Recurring;
 import org.jobrunr.jobs.context.JobContext;
@@ -52,10 +50,12 @@ public class OrderChainScheduler {
 	 */
 	@PostConstruct
 	void registerCompensations() {
-		compensationDispatcher.onFinalFailure(OrderChainScheduler.class, "issueShipment", failure -> {
-			String rootJobId = failure.parameter(0);
-			jobScheduler.enqueue(() -> compensateReleaseStock(rootJobId, failure.reason()));
-		});
+		compensationDispatcher.onFinalFailure(
+			OrderChainScheduler.class, "issueShipment", failure -> {
+				String rootJobId = failure.parameter(0);
+				jobScheduler.enqueue(() -> compensateReleaseStock(rootJobId, failure.reason()));
+			}
+		);
 	}
 
 	/**
@@ -65,37 +65,48 @@ public class OrderChainScheduler {
 	 * <p>{@code @Recurring} 메서드는 원래 파라미터를 가질 수 없지만, {@link JobContext}만은
 	 * JobRunr가 실행 시점에 주입해 주므로 예외적으로 받을 수 있다.
 	 */
-	@Job(name = "주문 체인 - 시작", labels = {"OMS", "CHAIN"})
+	@Job(name = "주문 체인(성공) - 시작", labels = {"OMS", "CHAIN"})
 	@Recurring(
-		id = "order-chain-job",
+		id = "order-chain-job-success",
 		interval = "PT20M"
 	)
-	public void startChain(JobContext jobContext) {
+	public void startChainWithSuccess(JobContext jobContext) {
 		var rootJobId = jobContext.getJobId().toString();
 		log.info("주문 처리 체인 시작 - rootJobId={}", rootJobId);
-		jobScheduler.enqueue(() -> collectOrders(rootJobId));
+		jobScheduler.enqueue(() -> collectOrders(rootJobId, true));
+	}
+
+	@Job(name = "주문 체인(실패) - 시작", labels = {"OMS", "CHAIN"})
+	@Recurring(
+		id = "order-chain-job-failure",
+		interval = "PT20M"
+	)
+	public void startChainWithFailure(JobContext jobContext) {
+		var rootJobId = jobContext.getJobId().toString();
+		log.info("주문 처리 체인 시작 - rootJobId={}", rootJobId);
+		jobScheduler.enqueue(() -> collectOrders(rootJobId, false));
 	}
 
 	/**
 	 * 1단계: 주문 수집. 성공 시 재고 확인 단계를 enqueue.
 	 */
 	@Job(name = "주문 체인[%0] - 1. 주문 수집", labels = {"OMS", "CHAIN"})
-	public void collectOrders(String rootJobId) throws InterruptedException {
+	public void collectOrders(String rootJobId, boolean success) throws InterruptedException {
 		log.info("[주문 수집] 시작 - rootJobId={}", rootJobId);
 		Thread.sleep(2000);
 		log.info("[주문 수집] 완료 - 다음 단계(재고 확인) 예약");
-		jobScheduler.enqueue(() -> checkStock(rootJobId));
+		jobScheduler.enqueue(() -> checkStock(rootJobId, success));
 	}
 
 	/**
 	 * 2단계: 재고 확인. 성공 시 출고 지시 단계를 enqueue.
 	 */
 	@Job(name = "주문 체인[%0] - 2. 재고 확인", labels = {"OMS", "CHAIN"})
-	public void checkStock(String rootJobId) throws InterruptedException {
+	public void checkStock(String rootJobId, boolean success) throws InterruptedException {
 		log.info("[재고 확인] 시작 - rootJobId={}", rootJobId);
 		Thread.sleep(2000);
 		log.info("[재고 확인] 완료 - 다음 단계(출고 지시) 예약");
-		jobScheduler.enqueue(() -> issueShipment(rootJobId));
+		jobScheduler.enqueue(() -> issueShipment(rootJobId, success));
 	}
 
 	/**
@@ -108,10 +119,10 @@ public class OrderChainScheduler {
 	 * (재시도마다 보상이 중복 실행되지 않고, 최종 실패에만 정확히 한 번 실행됨)
 	 */
 	@Job(name = "주문 체인[%0] - 3. 출고 지시", labels = {"OMS", "CHAIN"}, retries = 2)
-	public void issueShipment(String rootJobId) throws InterruptedException {
+	public void issueShipment(String rootJobId, boolean jobSucceed) throws InterruptedException {
 		log.info("[출고 지시] 시작 - rootJobId={}", rootJobId);
 		Thread.sleep(2000);
-		if (ThreadLocalRandom.current().nextDouble() < 0.9) {
+		if (!jobSucceed) {
 			throw new IllegalStateException("출고 시스템 연동 실패 (테스트용 90% 실패)");
 		}
 		log.info("[출고 지시] 완료 - 주문 처리 체인 종료 rootJobId={}", rootJobId);

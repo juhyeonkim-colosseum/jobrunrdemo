@@ -36,8 +36,8 @@ jobrunr:
     password: admin
   background-job-server:
     enabled: true
-    poll-interval-in-seconds: 10
-    worker-count: 5 # 동시 작업할 수 있는 Task의 수
+    poll-interval-in-seconds: 5
+    worker-count: 10 # 동시 작업할 수 있는 Task의 수
     delete-succeeded-jobs-after: 48h
     permanently-delete-deleted-jobs-after: 60h
     thread-type: VirtualThreads
