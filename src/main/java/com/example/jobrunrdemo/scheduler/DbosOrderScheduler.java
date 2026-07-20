@@ -29,18 +29,18 @@ import lombok.RequiredArgsConstructor;
 @CustomLog
 @Component
 @RequiredArgsConstructor
-public class DbosOrderJobScheduler {
+public class DbosOrderScheduler {
 
 	private final DbosOrderWorkflowService orderWorkflow;
 
-	@Job(name = "주문 처리(DBOS)", labels = {"DBOS"})
+	@Job(name = "주문 처리(DBOS)", labels = {"OMS", "DBOS"})
 	@Recurring(
 		id = "dbos-order-workflow",
 		interval = "PT20M"
 	)
 	public void triggerOrderWorkflow() {
 		String orderBatchId = UUID.randomUUID().toString();
-		log.info("[JobRunr] DBOS 주문 워크플로우 트리거 batchId={}", orderBatchId);
+		log.info("[JobRunr] DBOS 주문 워크플로우 트리거 orderBatchId={}", orderBatchId);
 
 		// 워크플로우 ID = batchId → JobRunr 재시도 시 같은 DBOS 워크플로우로 재개(중복 방지)
 		try (var ignored = new WorkflowOptions(orderBatchId).setContext()) {

@@ -21,13 +21,13 @@ public class DbosOrderSteps {
 
 	@Step(name = "주문 수집")
 	public void collectOrders(String orderBatchId) {
-		log.info("[DBOS][스텝] 주문 수집 batchId={}", orderBatchId);
+		log.info("[DBOS][스텝] 주문 수집 orderBatchId={}", orderBatchId);
 		sleep(2000);
 	}
 
 	@Step(name = "재고 확인")
 	public void checkStock(String orderBatchId) {
-		log.info("[DBOS][스텝] 재고 확인 batchId={}", orderBatchId);
+		log.info("[DBOS][스텝] 재고 확인 orderBatchId={}", orderBatchId);
 		sleep(2000);
 	}
 
@@ -37,7 +37,7 @@ public class DbosOrderSteps {
 	 */
 	@Step(name = "출고 지시", maxAttempts = 3, intervalSeconds = 1, backOffRate = 2)
 	public void issueShipment(String orderBatchId) {
-		log.info("[DBOS][스텝] 출고 지시 시도 batchId={}", orderBatchId);
+		log.info("[DBOS][스텝] 출고 지시 시도 orderBatchId={}", orderBatchId);
 		if (ThreadLocalRandom.current().nextDouble() < 0.9) {
 			throw new IllegalStateException("출고 시스템 연동 실패 (테스트용 90% 실패)");
 		}
@@ -46,7 +46,13 @@ public class DbosOrderSteps {
 
 	@Step(name = "재고 예약 해제(보상)")
 	public void releaseStock(String orderBatchId) {
-		log.warn("[DBOS][스텝] 재고 예약 해제(보상) batchId={}", orderBatchId);
+		log.warn("[DBOS][스텝] 재고 예약 해제(보상) orderBatchId={}", orderBatchId);
+		sleep(1000);
+	}
+
+	@Step(name = "주문 취소(보상)")
+	public void cancelOrders(String orderBatchId) {
+		log.warn("[DBOS][스텝] 수집 주문 취소(보상) orderBatchId={}", orderBatchId);
 		sleep(1000);
 	}
 

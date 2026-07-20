@@ -26,7 +26,7 @@ public class OrderFulfillmentScheduler {
 
 	private final JobStepExecutor stepExecutor;
 
-	@Job(name = "주문 처리(람다 기반 Chaining)", labels = {"OMS"})
+	@Job(name = "주문 처리(단일 Job · 다단계)", labels = {"OMS", "SINGLE_JOB"})
 	@Recurring(
 		id = "order-fulfillment-job",
 		interval = "PT20M"
@@ -45,7 +45,7 @@ public class OrderFulfillmentScheduler {
 			e -> log.warn("[재고 확인] 실패 - 품절 알림 발송: {}", e.getMessage())
 		);
 
-		// 출고 지시: 성공 시 배송 추적 시작 + 주문 완료 알림, 실패 시 보상 처리(재고 예약 해제)
+		// 출고 지시: 성공 시 배송 추적 시작 + 주문 완료 알림, 실패 시 보상 처리(재고 예약 해제 → 주문 취소)
 		stepExecutor.run(
 			"출고 지시",
 			this::issueShipment,
@@ -56,8 +56,13 @@ public class OrderFulfillmentScheduler {
 		log.info("주문 처리 Job 완료");
 	}
 
+	/**
+	 * 출고 지시 실패 시 앞 단계의 효과를 역순으로 되돌리는 보상 처리(saga 패턴).
+	 * 다른 두 방식(수동 체이닝 · DBOS)과 동일하게 재고 예약 해제 → 주문 취소 순으로 수행한다.
+	 */
 	private void compensateShipment(Exception cause) {
-		log.warn("[출고 지시] 실패 - 재고 예약 해제(보상 처리) 수행: {}", cause.getMessage());
+		log.warn("[보상] 재고 예약 해제 - 사유={}", cause.getMessage());
+		log.warn("[보상] 수집 주문 취소 - 주문 처리 롤백 완료");
 	}
 
 	private void collectOrders() throws InterruptedException {

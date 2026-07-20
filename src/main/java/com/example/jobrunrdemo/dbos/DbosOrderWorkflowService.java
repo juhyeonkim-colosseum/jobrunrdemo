@@ -31,18 +31,20 @@ public class DbosOrderWorkflowService {
 	 */
 	@Workflow(name = "주문 처리 워크플로우")
 	public void processOrder(String orderBatchId) {
-		log.info("[DBOS] 주문 처리 워크플로우 시작 batchId={}", orderBatchId);
+		log.info("[DBOS] 주문 처리 워크플로우 시작 orderBatchId={}", orderBatchId);
 
 		steps.collectOrders(orderBatchId);
 		steps.checkStock(orderBatchId);
 		try {
 			steps.issueShipment(orderBatchId);
-			log.info("[DBOS] 주문 처리 워크플로우 완료 batchId={}", orderBatchId);
+			log.info("[DBOS] 주문 처리 워크플로우 완료 orderBatchId={}", orderBatchId);
 		} catch (Exception e) {
 			// 보상도 DBOS 스텝으로 기록 → 재개 시 일관성 유지 (saga 패턴)
-			log.error("[DBOS] 출고 지시 최종 실패 - 보상(재고 예약 해제) 실행 batchId={}, 사유={}",
+			// 다른 두 방식과 동일하게 재고 예약 해제 → 주문 취소 순으로 되돌린다.
+			log.error("[DBOS] 출고 지시 최종 실패 - 보상(재고 예약 해제 → 주문 취소) 실행 orderBatchId={}, 사유={}",
 				orderBatchId, e.getMessage());
 			steps.releaseStock(orderBatchId);
+			steps.cancelOrders(orderBatchId);
 		}
 	}
 }

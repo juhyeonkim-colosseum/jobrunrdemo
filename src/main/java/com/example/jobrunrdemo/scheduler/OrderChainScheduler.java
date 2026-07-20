@@ -65,7 +65,7 @@ public class OrderChainScheduler {
 	 * <p>{@code @Recurring} 메서드는 원래 파라미터를 가질 수 없지만, {@link JobContext}만은
 	 * JobRunr가 실행 시점에 주입해 주므로 예외적으로 받을 수 있다.
 	 */
-	@Job(name = "주문 수집(후속 Job 실행) - 성공", labels = {"OMS", "CHAIN"})
+	@Job(name = "주문 처리 체인 시작(트리거) - 성공 시나리오", labels = {"OMS", "CHAIN"})
 	@Recurring(
 		id = "order-chain-job-success",
 		interval = "PT20M"
@@ -76,7 +76,7 @@ public class OrderChainScheduler {
 		jobScheduler.enqueue(() -> collectOrders(rootJobId, true));
 	}
 
-	@Job(name = "주문 수집(후속 Job 실행) - 실패", labels = {"OMS", "CHAIN"})
+	@Job(name = "주문 처리 체인 시작(트리거) - 실패 시나리오", labels = {"OMS", "CHAIN"})
 	@Recurring(
 		id = "order-chain-job-failure",
 		interval = "PT20M"
@@ -110,7 +110,8 @@ public class OrderChainScheduler {
 	}
 
 	/**
-	 * 3단계: 출고 지시(체인의 마지막). 실패 테스트용으로 90% 확률로 실패한다.
+	 * 3단계: 출고 지시(체인의 마지막). 시작점 시나리오({@code success})에 따라 성공/실패가 결정된다.
+	 * 실패 시나리오에서는 항상 예외를 던져 보상 처리 체인을 시연할 수 있다.
 	 *
 	 * <p>이 단계는 그냥 예외를 던질 뿐, 보상 처리를 직접 호출하지 않는다.
 	 * JobRunr가 {@code retries}만큼 재시도하고, <b>모든 재시도가 소진되어 최종 실패</b>하면
@@ -119,11 +120,11 @@ public class OrderChainScheduler {
 	 * (재시도마다 보상이 중복 실행되지 않고, 최종 실패에만 정확히 한 번 실행됨)
 	 */
 	@Job(name = "주문 체인[%0] - 3. 출고 지시", labels = {"OMS", "CHAIN"}, retries = 2)
-	public void issueShipment(String rootJobId, boolean jobSucceed) throws InterruptedException {
+	public void issueShipment(String rootJobId, boolean success) throws InterruptedException {
 		log.info("[출고 지시] 시작 - rootJobId={}", rootJobId);
 		Thread.sleep(2000);
-		if (!jobSucceed) {
-			throw new IllegalStateException("출고 시스템 연동 실패 (테스트용 90% 실패)");
+		if (!success) {
+			throw new IllegalStateException("출고 시스템 연동 실패 (실패 시나리오 강제 실패)");
 		}
 		log.info("[출고 지시] 완료 - 주문 처리 체인 종료 rootJobId={}", rootJobId);
 	}
@@ -132,7 +133,7 @@ public class OrderChainScheduler {
 	 * 보상 1단계: 재고 예약 해제(2단계 '재고 확인'의 효과 되돌리기).
 	 * 성공 시 다음 보상 단계(주문 취소)를 enqueue한다.
 	 */
-	@Job(name = "주문 체인[%0] - 보상 1. 재고 예약 해제", labels = {"OMS", "COMPENSATION"})
+	@Job(name = "주문 체인[%0] - 보상 1. 재고 예약 해제", labels = {"OMS", "CHAIN", "COMPENSATION"})
 	public void compensateReleaseStock(String rootJobId, String reason) throws InterruptedException {
 		log.warn("[보상] 재고 예약 해제 - rootJobId={}, 사유={}", rootJobId, reason);
 		Thread.sleep(1000);
@@ -143,7 +144,7 @@ public class OrderChainScheduler {
 	/**
 	 * 보상 2단계: 수집한 주문 취소(1단계 '주문 수집'의 효과 되돌리기). 보상 체인의 마지막.
 	 */
-	@Job(name = "주문 체인[%0] - 보상 2. 주문 취소", labels = {"OMS", "COMPENSATION"})
+	@Job(name = "주문 체인[%0] - 보상 2. 주문 취소", labels = {"OMS", "CHAIN", "COMPENSATION"})
 	public void compensateCancelOrders(String rootJobId) throws InterruptedException {
 		log.warn("[보상] 수집 주문 취소 - rootJobId={}", rootJobId);
 		Thread.sleep(1000);
